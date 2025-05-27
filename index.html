@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Visualizador de CSV - Empresas</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #filtros {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Visualizador de CSV - Empresas</h2>
+
+<input type="file" id="csvFile" accept=".csv"><br><br>
+
+<div id="filtros">
+    <label for="filtroCategoria">Filtrar por Categoria:</label>
+    <select id="filtroCategoria">
+        <option value="">Todas</option>
+    </select>
+
+    <label for="filtroWebsite">Com Site?</label>
+    <select id="filtroWebsite">
+        <option value="">Todas</option>
+        <option value="sim">Sim</option>
+        <option value="nao">Não</option>
+    </select>
+</div>
+
+<table id="tabela" class="display" style="width:100%">
+    <thead></thead>
+    <tbody></tbody>
+</table>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+
+<script>
+let tabela;
+
+document.getElementById('csvFile').addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+            inicializaTabela(results.data);
+        }
+    });
+});
+
+function inicializaTabela(data) {
+    // Preenche cabeçalho
+    const colunas = Object.keys(data[0]);
+    const thead = $('#tabela thead').empty();
+    let headerRow = '<tr>';
+    colunas.forEach(col => headerRow += `<th>${col}</th>`);
+    headerRow += '</tr>';
+    thead.append(headerRow);
+
+    // Preenche corpo
+    const tbody = $('#tabela tbody').empty();
+    data.forEach(row => {
+        let rowHtml = '<tr>';
+        colunas.forEach(col => rowHtml += `<td>${row[col]}</td>`);
+        rowHtml += '</tr>';
+        tbody.append(rowHtml);
+    });
+
+    // Inicializa ou atualiza DataTable
+    if ($.fn.dataTable.isDataTable('#tabela')) {
+        tabela.clear().rows.add($('#tabela tbody tr')).draw();
+    } else {
+        tabela = $('#tabela').DataTable();
+    }
+
+    popularFiltros(data);
+}
+
+function popularFiltros(data) {
+    const categorias = [...new Set(data.map(item => item.Categoria))];
+    const selectCategoria = $('#filtroCategoria').empty().append('<option value="">Todas</option>');
+    categorias.forEach(cat => selectCategoria.append(`<option value="${cat}">${cat}</option>`));
+
+    $('#filtroCategoria, #filtroWebsite').off().on('change', function() {
+        aplicarFiltros(data);
+    });
+}
+
+function aplicarFiltros(data) {
+    const catFiltro = $('#filtroCategoria').val();
+    const webFiltro = $('#filtroWebsite').val();
+
+    const filtrados = data.filter(item => {
+        let passa = true;
+        if (catFiltro && item.Categoria !== catFiltro) passa = false;
+        if (webFiltro === 'sim' && (!item.Website || item.Website.trim() === '')) passa = false;
+        if (webFiltro === 'nao' && item.Website && item.Website.trim() !== '') passa = false;
+        return passa;
+    });
+
+    inicializaTabela(filtrados);
+}
+</script>
+
+</body>
+</html>
