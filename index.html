@@ -2,21 +2,16 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Visualizador de CSV - Empresas</title>
+    <title>Visualizador e Exportador de CSV com WhatsApp</title>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        #filtros {
-            margin-bottom: 20px;
-        }
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #filtros { margin-bottom: 20px; }
     </style>
 </head>
 <body>
 
-<h2>Visualizador de CSV - Empresas</h2>
+<h2>Visualizador e Exportador de CSV com WhatsApp</h2>
 
 <input type="file" id="csvFile" accept=".csv"><br><br>
 
@@ -32,7 +27,23 @@
         <option value="sim">Sim</option>
         <option value="nao">Não</option>
     </select>
+
+    <label for="filtro9Digitos">Possui 9 dígitos?</label>
+    <select id="filtro9Digitos">
+        <option value="">Todas</option>
+        <option value="sim">Sim</option>
+        <option value="nao">Não</option>
+    </select>
+
+    <label for="colunaExportar">Coluna para Exportar:</label>
+    <select id="colunaExportar"></select>
+
+    <button id="exportarBtn">Exportar CSV</button>
 </div>
+
+<h3>Personalizar mensagem:</h3>
+<label for="seuNome">Seu Nome:</label>
+<input type="text" id="seuNome" placeholder="Digite seu nome">
 
 <table id="tabela" class="display" style="width:100%">
     <thead></thead>
@@ -45,6 +56,7 @@
 
 <script>
 let tabela;
+let dadosOriginais = [];
 
 document.getElementById('csvFile').addEventListener('change', function (e) {
     const file = e.target.files[0];
@@ -52,30 +64,30 @@ document.getElementById('csvFile').addEventListener('change', function (e) {
         header: true,
         skipEmptyLines: true,
         complete: function(results) {
-            inicializaTabela(results.data);
+            dadosOriginais = results.data;
+            inicializaTabela(dadosOriginais);
         }
     });
 });
 
 function inicializaTabela(data) {
-    // Preenche cabeçalho
+    if (!data.length) return;
+
     const colunas = Object.keys(data[0]);
     const thead = $('#tabela thead').empty();
     let headerRow = '<tr>';
     colunas.forEach(col => headerRow += `<th>${col}</th>`);
-    headerRow += '</tr>';
+    headerRow += '<th>Ação</th></tr>';
     thead.append(headerRow);
 
-    // Preenche corpo
     const tbody = $('#tabela tbody').empty();
-    data.forEach(row => {
+    data.forEach((row) => {
         let rowHtml = '<tr>';
         colunas.forEach(col => rowHtml += `<td>${row[col]}</td>`);
-        rowHtml += '</tr>';
+        rowHtml += `<td><button class="whatsappBtn">WhatsApp</button></td></tr>`;
         tbody.append(rowHtml);
     });
 
-    // Inicializa ou atualiza DataTable
     if ($.fn.dataTable.isDataTable('#tabela')) {
         tabela.clear().rows.add($('#tabela tbody tr')).draw();
     } else {
@@ -83,6 +95,7 @@ function inicializaTabela(data) {
     }
 
     popularFiltros(data);
+    popularColunasExportar(colunas);
 }
 
 function popularFiltros(data) {
@@ -90,25 +103,121 @@ function popularFiltros(data) {
     const selectCategoria = $('#filtroCategoria').empty().append('<option value="">Todas</option>');
     categorias.forEach(cat => selectCategoria.append(`<option value="${cat}">${cat}</option>`));
 
-    $('#filtroCategoria, #filtroWebsite').off().on('change', function() {
-        aplicarFiltros(data);
+    $('#filtroCategoria, #filtroWebsite, #filtro9Digitos').off().on('change', function() {
+        aplicarFiltros();
     });
 }
 
-function aplicarFiltros(data) {
+function popularColunasExportar(colunas) {
+    const selectColuna = $('#colunaExportar').empty();
+    colunas.forEach(col => selectColuna.append(`<option value="${col}">${col}</option>`));
+}
+
+function possui9Digitos(numeroBruto) {
+    const limpo = limparNumero(numeroBruto).slice(4); 
+    return limpo.length === 9;
+}
+
+function aplicarFiltros() {
     const catFiltro = $('#filtroCategoria').val();
     const webFiltro = $('#filtroWebsite').val();
+    const filtro9 = $('#filtro9Digitos').val();
 
-    const filtrados = data.filter(item => {
+    const filtrados = dadosOriginais.filter(item => {
         let passa = true;
         if (catFiltro && item.Categoria !== catFiltro) passa = false;
         if (webFiltro === 'sim' && (!item.Website || item.Website.trim() === '')) passa = false;
         if (webFiltro === 'nao' && item.Website && item.Website.trim() !== '') passa = false;
+
+        if (filtro9) {
+            const tem9 = possui9Digitos(item.Telefone);
+            if (filtro9 === 'sim' && !tem9) passa = false;
+            if (filtro9 === 'nao' && tem9) passa = false;
+        }
         return passa;
     });
 
     inicializaTabela(filtrados);
 }
+
+$('#exportarBtn').click(function() {
+    const colExportar = $('#colunaExportar').val();
+
+    const filtrados = dadosOriginais.filter(item => {
+        let passa = true;
+
+        const catFiltro = $('#filtroCategoria').val();
+        const webFiltro = $('#filtroWebsite').val();
+        const filtro9 = $('#filtro9Digitos').val();
+
+        if (catFiltro && item.Categoria !== catFiltro) passa = false;
+        if (webFiltro === 'sim' && (!item.Website || item.Website.trim() === '')) passa = false;
+        if (webFiltro === 'nao' && item.Website && item.Website.trim() !== '') passa = false;
+
+        if (filtro9) {
+            const tem9 = possui9Digitos(item.Telefone);
+            if (filtro9 === 'sim' && !tem9) passa = false;
+            if (filtro9 === 'nao' && tem9) passa = false;
+        }
+        return passa;
+    });
+
+    const colunaDados = filtrados.map(item => ({[colExportar]: item[colExportar]}));
+
+    const csv = Papa.unparse(colunaDados);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `export_${colExportar}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+});
+
+function limparNumero(numeroBruto) {
+    if (!numeroBruto) return '';
+
+    let num = numeroBruto.replace(/\D/g, '');
+
+    if (num.startsWith('0')) num = num.substring(1);
+    if (num.startsWith('031')) num = num.substring(1);
+    if (num.startsWith('+55')) num = num.substring(3);
+    else if (num.startsWith('55')) num = num.substring(2);
+
+    return '55' + num;
+}
+
+$('#tabela tbody').on('click', '.whatsappBtn', function() {
+    const nome = $('#seuNome').val().trim();
+    if (!nome) {
+        alert('Por favor, preencha o seu nome!');
+        return;
+    }
+
+    const tr = $(this).closest('tr');
+    const nomeEmpresa = tr.find('td:eq(0)').text();
+    const telefoneBruto = tr.find('td:eq(2)').text();
+    const categoria = tr.find('td:eq(4)').text();
+
+    const telefone = limparNumero(telefoneBruto);
+
+    if (!telefone) {
+        alert('Telefone não disponível!');
+        return;
+    }
+
+    let mensagem = `Olá! Meu nome é ${nome}, achei seu número no Google Maps na categoria ${categoria}, pela empresa ${nomeEmpresa}. Vi que ainda não possuem site!%0A%0A`;
+
+    if (categoria.toLowerCase() === 'restaurante') {
+        mensagem += `🍽 Seu Restaurante Merece um Cardápio Digital Profissional!%0A%0AApresente seus pratos com imagens, descrições e categorias personalizadas — tudo com a identidade visual da sua marca e pronto para ser acessado por qualquer cliente, a qualquer hora.%0A%0A🔗 Conheça também o site oficial da TGDevs:%0Ahttps://tgdevs.pp.ua%0A%0A📲 Veja o modelo em:%0Ahttps://cardapio.tgdevs.pp.ua%0A%0A💰 INVESTIMENTO:%0A✅ Cardápio Digital: R$ 150 (pagamento único)%0A✅ Hospedagem: R$ 50 / ano%0A%0A🌐 Quer um domínio próprio (.com.br)? Adicione por apenas R$ 80/ano (opcional)%0A%0A🎁 FECHANDO HOJE, você ganha R$ 50 de DESCONTO no Cardápio Digital!%0A➡ Pague apenas R$ 100 pelo cardápio + R$ 50 da hospedagem = R$ 150 o pacote completo!%0A%0A💡 Simples, profissional e pronto para aumentar suas vendas!`;
+    } else {
+        mensagem += `🏪 Seu Comércio Precisa Estar Online!%0A%0ATenha um site profissional para apresentar sua loja, serviços ou produtos — com design moderno, personalizado e pronto para atrair clientes.%0A%0A🔗 Conheça também o site oficial da TGDevs:%0Ahttps://tgdevs.pp.ua%0A%0A📲 Veja modelos em:%0Ahttps://profissionalcapilar.tgdevs.pp.ua%0Ahttps://invoga.tgdevs.pp.ua%0Ahttps://endodontia.tgdevs.pp.ua%0A%0A💰 INVESTIMENTO:%0A✅ Site Básico: R$ 150 (pagamento único)%0A✅ Hospedagem: R$ 50 / ano%0A%0A🌐 Quer um domínio próprio (.com.br)? Adicione por apenas R$ 80/ano (opcional)%0A%0A🎁 FECHANDO HOJE, você ganha R$ 50 de DESCONTO no Site Básico!%0A➡ Pague apenas R$ 100 pelo site + R$ 50 da hospedagem = R$ 150 o pacote completo!%0A%0A💡 Simples, profissional e pronto para impulsionar seu negócio!`;
+    }
+
+    const url = `https://wa.me/${telefone}?text=${mensagem}`;
+    window.open(url, '_blank');
+});
 </script>
 
 </body>
